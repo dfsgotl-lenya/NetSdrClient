@@ -116,17 +116,17 @@ namespace NetSdrClientApp
 
         private void _udpClient_MessageReceived(object? sender, byte[] e)
         {
-            NetSdrMessageHelper.TranslateMessage(e, out MsgTypes type, out ControlItemCodes code, out ushort sequenceNum, out byte[] body);
+            NetSdrMessageHelper.TranslateMessage(e, out MsgTypes type, out ControlItemCodes code, out _, out byte[] body);
+        
             var samples = NetSdrMessageHelper.GetSamples(16, body);
-
-            Console.WriteLine($"Samples recieved: " + body.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
-
+            Console.WriteLine("Samples received: " + body.Select(b => Convert.ToString(b, 16)).Aggregate((l, r) => $"{l} {r}"));
+        
             using (FileStream fs = new FileStream("samples.bin", FileMode.Append, FileAccess.Write, FileShare.Read))
             using (BinaryWriter sw = new BinaryWriter(fs))
             {
                 foreach (var sample in samples)
                 {
-                    sw.Write((short)sample); //write 16 bit per sample as configured 
+                    sw.Write((short)sample);
                 }
             }
         }
