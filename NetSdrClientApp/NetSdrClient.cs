@@ -1,4 +1,4 @@
-﻿using NetSdrClientApp.Messages;
+using NetSdrClientApp.Messages;
 using NetSdrClientApp.Networking;
 using System;
 using System.Collections.Generic;
@@ -65,8 +65,8 @@ namespace NetSdrClientApp
                 Console.WriteLine("No active connection.");
                 return;
             }
-;           
-            var iqDataMode = (byte)0x80;
+
+;           var iqDataMode = (byte)0x80;
             var start = (byte)0x02;
             var fifo16bitCaptureMode = (byte)0x01;
             var n = (byte)1;
@@ -116,17 +116,17 @@ namespace NetSdrClientApp
 
         private void _udpClient_MessageReceived(object? sender, byte[] e)
         {
-            NetSdrMessageHelper.TranslateMessage(e, out MsgTypes type, out ControlItemCodes code, out _, out byte[] body);
-        
+            NetSdrMessageHelper.TranslateMessage(e, out MsgTypes type, out ControlItemCodes code, out ushort sequenceNum, out byte[] body);
             var samples = NetSdrMessageHelper.GetSamples(16, body);
-            Console.WriteLine("Samples received: " + body.Select(b => Convert.ToString(b, 16)).Aggregate((l, r) => $"{l} {r}"));
-        
+
+            Console.WriteLine($"Samples recieved: " + body.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
+
             using (FileStream fs = new FileStream("samples.bin", FileMode.Append, FileAccess.Write, FileShare.Read))
             using (BinaryWriter sw = new BinaryWriter(fs))
             {
                 foreach (var sample in samples)
                 {
-                    sw.Write((short)sample);
+                    sw.Write((short)sample); //write 16 bit per sample as configured 
                 }
             }
         }
