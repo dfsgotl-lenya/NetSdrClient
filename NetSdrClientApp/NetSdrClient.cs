@@ -17,6 +17,8 @@ namespace NetSdrClientApp
         private readonly ITcpClient _tcpClient;
         private readonly IUdpClient _udpClient;
 
+        private TaskCompletionSource<byte[]>? responseTaskSource;
+
         public bool IQStarted { get; set; }
 
         public NetSdrClient(ITcpClient tcpClient, IUdpClient udpClient)
@@ -38,7 +40,6 @@ namespace NetSdrClientApp
                 var automaticFilterMode = BitConverter.GetBytes((ushort)0).ToArray();
                 var adMode = new byte[] { 0x00, 0x03 };
 
-                //Host pre setup
                 var msgs = new List<byte[]>
                 {
                     NetSdrMessageHelper.GetControlItemMessage(MsgTypes.SetControlItem, ControlItemCodes.IQOutputDataSampleRate, sampleRate),
@@ -53,10 +54,7 @@ namespace NetSdrClientApp
             }
         }
 
-        public void Disconect()
-        {
-            _tcpClient.Disconnect();
-        }
+        public void Disconect() => _tcpClient.Disconnect();
 
         public async Task StartIQAsync()
         {
@@ -74,11 +72,9 @@ namespace NetSdrClientApp
             var args = new[] { iqDataMode, start, fifo16bitCaptureMode, n };
 
             var msg = NetSdrMessageHelper.GetControlItemMessage(MsgTypes.SetControlItem, ControlItemCodes.ReceiverState, args);
-            
             await SendTcpRequest(msg);
 
             IQStarted = true;
-
             _ = _udpClient.StartListeningAsync();
         }
 
@@ -91,15 +87,11 @@ namespace NetSdrClientApp
             }
 
             var stop = (byte)0x01;
-
             var args = new byte[] { 0, stop, 0, 0 };
-
             var msg = NetSdrMessageHelper.GetControlItemMessage(MsgTypes.SetControlItem, ControlItemCodes.ReceiverState, args);
 
             await SendTcpRequest(msg);
-
             IQStarted = false;
-
             _udpClient.StopListening();
         }
 
@@ -110,30 +102,25 @@ namespace NetSdrClientApp
             var args = new[] { channelArg }.Concat(frequencyArg).ToArray();
 
             var msg = NetSdrMessageHelper.GetControlItemMessage(MsgTypes.SetControlItem, ControlItemCodes.ReceiverFrequency, args);
-
             await SendTcpRequest(msg);
         }
 
+        // NOSONAR - not static because it accesses instance members
         private void _udpClient_MessageReceived(object? sender, byte[] e)
         {
-            NetSdrMessageHelper.TranslateMessage(e, out ControlItemCodes code, out ushort sequenceNum, out byte[] body);
+            NetSdrMessageHelper.TranslateMessage(e, out _, out _, out _, out byte[] body);
             var samples = NetSdrMessageHelper.GetSamples(16, body);
 
-            Console.WriteLine($"Samples recieved: " + body.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
+            Console.WriteLine("Samples received: " +
+                string.Join(" ", body.Select(b => Convert.ToString(b, 16))));
 
-            using (FileStream fs = new FileStream("samples.bin", FileMode.Append, FileAccess.Write, FileShare.Read))
-            using (BinaryWriter sw = new BinaryWriter(fs))
-            {
-                foreach (var sample in samples)
-                {
-                    sw.Write((short)sample); //write 16 bit per sample as configured 
-                }
-            }
+            using FileStream fs = new("samples.bin", FileMode.Append, FileAccess.Write, FileShare.Read);
+            using BinaryWriter sw = new(fs);
+            foreach (var sample in samples)
+                sw.Write((short)sample);
         }
 
-        private TaskCompletionSource<byte[]> responseTaskSource;
-
-        private async Task<byte[]> SendTcpRequest(byte[] msg)
+        private async Task<byte[]>? SendTcpRequest(byte[] msg)
         {
             if (!_tcpClient.Connected)
             {
@@ -141,25 +128,24 @@ namespace NetSdrClientApp
                 return null;
             }
 
-            responseTaskSource = new TaskCompletionSource<byte[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-            var responseTask = responseTaskSource.Task;
-
+            responseTaskSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
             await _tcpClient.SendMessageAsync(msg);
 
-            var resp = await responseTask;
-
+            var resp = await responseTaskSource.Task;
             return resp;
         }
 
         private void _tcpClient_MessageReceived(object? sender, byte[] e)
         {
-            //TODO: add Unsolicited messages handling here
+            // TODO: handle unsolicited messages
             if (responseTaskSource != null)
             {
                 responseTaskSource.SetResult(e);
                 responseTaskSource = null;
             }
-            Console.WriteLine("Response recieved: " + e.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
+
+            Console.WriteLine("Response received: " +
+                string.Join(" ", e.Select(b => Convert.ToString(b, 16))));
         }
     }
 }
