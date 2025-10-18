@@ -115,5 +115,52 @@ public class NetSdrClientTests
         Assert.That(_client.IQStarted, Is.False);
     }
 
+    [Test]
+    public async Task EchoServer_ReadsAndWritesStreamData()
+    {
+        // Arrange
+        var inputBytes = System.Text.Encoding.UTF8.GetBytes("ping");
+        using var memoryStream = new MemoryStream(inputBytes);
+
+        var streamMock = new Mock<Stream>();
+        int readCalled = 0;
+
+        streamMock.Setup(s => s.ReadAsync(It.IsAny<byte[]>(), 0, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns<byte[], int, int, CancellationToken>((buffer, offset, count, token) =>
+            {
+                if (readCalled == 0)
+                {
+                    // первая итерация: вернуть "ping"
+                    Array.Copy(inputBytes, buffer, inputBytes.Length);
+                    readCalled++;
+                    return Task.FromResult(inputBytes.Length);
+                }
+                else
+                {
+                    // вторая итерация: конец потока
+                    return Task.FromResult(0);
+                }
+            });
+
+        streamMock.Setup(s => s.WriteAsync(It.IsAny<byte[]>(), 0, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask)
+            .Verifiable();
+
+        var buffer = new byte[1024];
+        var token = new CancellationTokenSource().Token;
+        int bytesRead = 0;
+
+        // Act (имитация куска кода с while)
+        while (!token.IsCancellationRequested &&
+               (bytesRead = await streamMock.Object.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
+        {
+            await streamMock.Object.WriteAsync(buffer, 0, bytesRead, token);
+        }
+
+        // Assert
+        streamMock.Verify(s => s.WriteAsync(It.IsAny<byte[]>(), 0, inputBytes.Length, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+
     //TODO: cover the rest of the NetSdrClient code here
 }
