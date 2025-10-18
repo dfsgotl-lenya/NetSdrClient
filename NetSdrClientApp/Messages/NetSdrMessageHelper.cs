@@ -28,7 +28,7 @@ namespace NetSdrClientApp.Messages
             DataItem3
         }
 
-        public enum ControlItemCodes
+        public enum ControlItemCodes : ushort
         {
             None = 0,
             IQOutputDataSampleRate = 0x00B8,
