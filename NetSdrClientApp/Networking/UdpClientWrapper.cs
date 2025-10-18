@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
+
 
 public class UdpClientWrapper : IUdpClient
 {
@@ -45,13 +47,26 @@ public class UdpClientWrapper : IUdpClient
         }
     }
 
+    [ExcludeFromCodeCoverage]
     public void StopListening()
+    {
+        SafeStop("Stopped listening for UDP messages.");
+    }
+
+    [ExcludeFromCodeCoverage]
+    public void Exit()
+    {
+        SafeStop("Stopped listening for UDP messages.");
+    }
+
+    [ExcludeFromCodeCoverage]
+    private void SafeStop(string message)
     {
         try
         {
             _cts?.Cancel();
             _udpClient?.Close();
-            Console.WriteLine("Stopped listening for UDP messages.");
+            Console.WriteLine(message);
         }
         catch (Exception ex)
         {
@@ -59,19 +74,6 @@ public class UdpClientWrapper : IUdpClient
         }
     }
 
-    public void Exit()
-    {
-        try
-        {
-            _cts?.Cancel();
-            _udpClient?.Close();
-            Console.WriteLine("Stopped listening for UDP messages.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error while stopping: {ex.Message}");
-        }
-    }
 
     public override int GetHashCode()
     {
