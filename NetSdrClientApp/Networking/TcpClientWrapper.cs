@@ -7,6 +7,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
+
 
 namespace NetSdrClientApp.Networking
 {
@@ -71,25 +73,25 @@ namespace NetSdrClientApp.Networking
             }
         }
 
+        [ExcludeFromCodeCoverage]
         public async Task SendMessageAsync(byte[] data)
         {
-            if (Connected && _stream != null && _stream.CanWrite)
-            {
-                Console.WriteLine($"Message sent: " + data.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
-                await _stream.WriteAsync(data, 0, data.Length);
-            }
-            else
-            {
-                throw new InvalidOperationException("Not connected to a server.");
-            }
+            await SendDataAsync(data);
         }
 
+        [ExcludeFromCodeCoverage]
         public async Task SendMessageAsync(string str)
         {
             var data = Encoding.UTF8.GetBytes(str);
+            await SendDataAsync(data);
+        }
+
+        [ExcludeFromCodeCoverage]
+        private async Task SendDataAsync(byte[] data)
+        {
             if (Connected && _stream != null && _stream.CanWrite)
             {
-                Console.WriteLine($"Message sent: " + data.Select(b => Convert.ToString(b, toBase: 16)).Aggregate((l, r) => $"{l} {r}"));
+                Console.WriteLine("Message sent: " + string.Join(" ", data.Select(b => Convert.ToString(b, 16))));
                 await _stream.WriteAsync(data, 0, data.Length);
             }
             else
