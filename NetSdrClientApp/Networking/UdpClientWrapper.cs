@@ -1,87 +1,61 @@
-﻿using System;
+using System;
 using System.Net;
-using System.Net.Sockets;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.CodeAnalysis;
+using NetSdrClientApp;
+using NUnit.Framework;
 
-
-public class UdpClientWrapper : IUdpClient
+namespace NetSdrClientAppTests
 {
-    private readonly IPEndPoint _localEndPoint;
-    private CancellationTokenSource? _cts;
-    private UdpClient? _udpClient;
-
-    public event EventHandler<byte[]>? MessageReceived;
-
-    public UdpClientWrapper(int port)
+    public class UdpClientWrapperTests
     {
-        _localEndPoint = new IPEndPoint(IPAddress.Any, port);
-    }
+        private UdpClientWrapper _client;
+        private IPEndPoint _localEndPoint;
 
-    public async Task StartListeningAsync()
-    {
-        _cts = new CancellationTokenSource();
-        Console.WriteLine("Start listening for UDP messages...");
-
-        try
+        [SetUp]
+        public void Setup()
         {
-            _udpClient = new UdpClient(_localEndPoint);
-            while (!_cts.Token.IsCancellationRequested)
-            {
-                UdpReceiveResult result = await _udpClient.ReceiveAsync(_cts.Token);
-                MessageReceived?.Invoke(this, result.Buffer);
-
-                Console.WriteLine($"Received from {result.RemoteEndPoint}");
-            }
+            _localEndPoint = new IPEndPoint(IPAddress.Loopback, 0);
+            _client = new UdpClientWrapper(_localEndPoint);
         }
-        catch (OperationCanceledException ex)
+
+        [TearDown]
+        public void Cleanup()
         {
-            //empty
+            _client?.Disconnect();
         }
-        catch (Exception ex)
+
+        [Test]
+        public void Connect_ShouldNotThrow()
         {
-            Console.WriteLine($"Error receiving message: {ex.Message}");
+            Assert.DoesNotThrow(() => _client.Connect(new IPEndPoint(IPAddress.Loopback, 9000)));
         }
-    }
 
-    [ExcludeFromCodeCoverage]
-    public void StopListening()
-    {
-        SafeStop("Stopped listening for UDP messages.");
-    }
-
-    [ExcludeFromCodeCoverage]
-    public void Exit()
-    {
-        SafeStop("Stopped listening for UDP messages.");
-    }
-
-    [ExcludeFromCodeCoverage]
-    private void SafeStop(string message)
-    {
-        try
+        [Test]
+        public void Disconnect_AfterConnect_ShouldNotThrow()
         {
-            _cts?.Cancel();
-            _udpClient?.Close();
-            Console.WriteLine(message);
+            _client.Connect(new IPEndPoint(IPAddress.Loopback, 9000));
+            Assert.DoesNotThrow(() => _client.Disconnect());
         }
-        catch (Exception ex)
+
+        [Test]
+        public async Task SendMessageAsync_WithData_ShouldNotThrow()
         {
-            Console.WriteLine($"Error while stopping: {ex.Message}");
+            _client.Connect(new IPEndPoint(IPAddress.Loopback, 9000));
+            var data = new byte[] { 1, 2, 3, 4 };
+            Assert.DoesNotThrowAsync(async () => await _client.SendMessageAsync(data));
         }
-    }
 
+        [Test]
+        public void Disconnect_WithoutConnect_ShouldNotThrow()
+        {
+            Assert.DoesNotThrow(() => _client.Disconnect());
+        }
 
-    public override int GetHashCode()
-    {
-        var payload = $"{nameof(UdpClientWrapper)}|{_localEndPoint.Address}|{_localEndPoint.Port}";
-
-        using var md5 = MD5.Create();
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(payload));
-
-        return BitConverter.ToInt32(hash, 0);
+        [Test]
+        public void Connect_InvalidEndpoint_ShouldThrow()
+        {
+            var invalidEndPoint = new IPEndPoint(IPAddress.None, 0);
+            Assert.Throws<Exception>(() => _client.Connect(invalidEndPoint));
+        }
     }
 }
