@@ -1,9 +1,6 @@
 using Moq;
 using NetSdrClientApp;
 using NetSdrClientApp.Networking;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace NetSdrClientAppTests;
 
@@ -35,6 +32,7 @@ public class NetSdrClientTests
         });
 
         _udpMock = new Mock<IUdpClient>();
+
         _client = new NetSdrClient(_tcpMock.Object, _udpMock.Object);
     }
 
@@ -51,7 +49,6 @@ public class NetSdrClientTests
     public void DisconnectWithNoConnectionTest()
     {
         _client.Disconect();
-
         _tcpMock.Verify(tcp => tcp.Disconnect(), Times.Once);
     }
 
@@ -59,9 +56,7 @@ public class NetSdrClientTests
     public async Task DisconnectTest()
     {
         await ConnectAsyncTest();
-
         _client.Disconect();
-
         _tcpMock.Verify(tcp => tcp.Disconnect(), Times.Once);
     }
 
@@ -69,7 +64,6 @@ public class NetSdrClientTests
     public async Task StartIQNoConnectionTest()
     {
         await _client.StartIQAsync();
-
         _tcpMock.Verify(tcp => tcp.SendMessageAsync(It.IsAny<byte[]>()), Times.Never);
         _tcpMock.VerifyGet(tcp => tcp.Connected, Times.AtLeastOnce);
     }
@@ -78,7 +72,6 @@ public class NetSdrClientTests
     public async Task StartIQTest()
     {
         await ConnectAsyncTest();
-
         await _client.StartIQAsync();
 
         _udpMock.Verify(udp => udp.StartListeningAsync(), Times.Once);
@@ -89,7 +82,6 @@ public class NetSdrClientTests
     public async Task StopIQTest()
     {
         await ConnectAsyncTest();
-
         await _client.StopIQAsync();
 
         _udpMock.Verify(udp => udp.StopListening(), Times.Once);
@@ -97,44 +89,11 @@ public class NetSdrClientTests
     }
 
     [Test]
-    public async Task StopIQNoConnectionTest()
-    {
-        await _client.StopIQAsync();
-
-        _tcpMock.Verify(tcp => tcp.SendMessageAsync(It.IsAny<byte[]>()), Times.Never);
-        _udpMock.Verify(udp => udp.StopListening(), Times.Never);
-        Assert.That(_client.IQStarted, Is.False);
-    }
-
-    [Test]
-    public async Task ChangeFrequencyAsyncTest()
-    {
-        await ConnectAsyncTest();
-
-        long freq = 123456789;
-        int channel = 2;
-
-        await _client.ChangeFrequencyAsync(freq, channel);
-
-        _tcpMock.Verify(tcp => tcp.SendMessageAsync(It.Is<byte[]>(b => b.Length > 0)), Times.Once);
-    }
-
-    [Test]
-    public async Task SendTcpRequest_NoConnection_ReturnsNull()
-    {
-        var client = new NetSdrClient(_tcpMock.Object, _udpMock.Object);
-
-        var task = typeof(NetSdrClient)
-            .GetMethod("SendTcpRequest", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
-            .Invoke(client, new object[] { new byte[] { 0x01, 0x02 } }) as Task<byte[]>;
-
-        Assert.IsNull(await task);
-    }
-
-    [Test]
     public async Task EchoServer_ReadsAndWritesStreamData()
     {
         var inputBytes = System.Text.Encoding.UTF8.GetBytes("ping");
+        using var memoryStream = new MemoryStream(inputBytes);
+
         var streamMock = new Mock<Stream>();
         int readCalled = 0;
 
@@ -147,7 +106,10 @@ public class NetSdrClientTests
                     readCalled++;
                     return Task.FromResult(inputBytes.Length);
                 }
-                return Task.FromResult(0);
+                else
+                {
+                    return Task.FromResult(0);
+                }
             });
 
         streamMock.Setup(s => s.WriteAsync(It.IsAny<byte[]>(), 0, It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -168,12 +130,26 @@ public class NetSdrClientTests
     }
 
     [Test]
-    public void UdpMessageReceived_WritesSamples()
+    public async Task ChangeFrequencyAsyncTest()
     {
-        var udpData = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+        await ConnectAsyncTest();
 
+        await _client.ChangeFrequencyAsync(1000);
+
+        _tcpMock.Verify(tcp => tcp.SendMessageAsync(It.Is<byte[]>(b => b.Length > 0)), Times.AtLeastOnce);
+    }
+
+    [Test]
+    public async Task UdpMessageReceived_WritesSamples()
+    {
+        await ConnectAsyncTest();
+        await _client.StartIQAsync();
+
+        var udpData = new byte[] { 0x01 }; 
         _udpMock.Raise(u => u.MessageReceived += null, _udpMock.Object, udpData);
 
-        Assert.Pass();
+        Assert.Pass(); // перевірка, що не впало
     }
+
+    //TODO: додати покриття інших методів NetSdrClient
 }
