@@ -6,19 +6,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics.CodeAnalysis;
 
-/// <summary>
-/// This program was designed for test purposes only
-/// Not for a review
-/// </summary>
 namespace EchoTspServer
 {
-
     public class EchoServer
     {
         private readonly int _port;
         private TcpListener? _listener;
         private readonly CancellationTokenSource _cancellationTokenSource;
-
 
         public EchoServer(int port)
         {
@@ -43,8 +37,7 @@ namespace EchoTspServer
                 }
                 catch (ObjectDisposedException)
                 {
-                    // Listener has been closed
-                    break;
+                    break; // Listener has been closed
                 }
             }
 
@@ -61,10 +54,11 @@ namespace EchoTspServer
                     byte[] buffer = new byte[8192];
                     int bytesRead;
 
-                    while (!token.IsCancellationRequested && (bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token)) > 0)
+                    while (!token.IsCancellationRequested &&
+                           (bytesRead = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), token)) > 0)
                     {
                         // Echo back the received message
-                        await stream.WriteAsync(buffer, 0, bytesRead, token);
+                        await stream.WriteAsync(buffer.AsMemory(0, bytesRead), token);
                         Console.WriteLine($"Echoed {bytesRead} bytes to the client.");
                     }
                 }
@@ -83,7 +77,7 @@ namespace EchoTspServer
         public void Stop()
         {
             _cancellationTokenSource.Cancel();
-            _listener.Stop();
+            _listener?.Stop();
             _cancellationTokenSource.Dispose();
             Console.WriteLine("Server stopped.");
         }
@@ -92,12 +86,11 @@ namespace EchoTspServer
         {
             EchoServer server = new EchoServer(5000);
 
-            // Start the server in a separate task
             _ = Task.Run(() => server.StartAsync());
 
-            string host = "127.0.0.1"; // Target IP
-            int port = 60000;          // Target Port
-            int intervalMilliseconds = 5000; // Send every 3 seconds
+            string host = "127.0.0.1";
+            int port = 60000;
+            int intervalMilliseconds = 5000;
 
             using (var sender = new UdpTimedSender(host, port))
             {
@@ -107,7 +100,6 @@ namespace EchoTspServer
                 Console.WriteLine("Press 'q' to quit...");
                 while (Console.ReadKey(intercept: true).Key != ConsoleKey.Q)
                 {
-                    // Just wait until 'q' is pressed
                 }
 
                 sender.StopSending();
@@ -117,13 +109,15 @@ namespace EchoTspServer
         }
     }
 
-
     public class UdpTimedSender : IDisposable
     {
         private readonly string _host;
         private readonly int _port;
         private readonly UdpClient _udpClient;
         private Timer? _timer;
+        private bool _disposed;
+
+        private ushort i = 0;
 
         public UdpTimedSender(string host, int port)
         {
@@ -140,19 +134,22 @@ namespace EchoTspServer
             _timer = new Timer(SendMessageCallback, null, 0, intervalMilliseconds);
         }
 
-        ushort i = 0;
-
-        private void SendMessageCallback(object state)
+        private void SendMessageCallback(object? state)
         {
+            if (_disposed) return;
+
             try
             {
-                //dummy data
                 Random rnd = new Random();
                 byte[] samples = new byte[1024];
                 rnd.NextBytes(samples);
                 i++;
 
-                byte[] msg = (new byte[] { 0x04, 0x84 }).Concat(BitConverter.GetBytes(i)).Concat(samples).ToArray();
+                byte[] msg = (new byte[] { 0x04, 0x84 })
+                    .Concat(BitConverter.GetBytes(i))
+                    .Concat(samples)
+                    .ToArray();
+
                 var endpoint = new IPEndPoint(IPAddress.Parse(_host), _port);
 
                 _udpClient.Send(msg, msg.Length, endpoint);
@@ -170,11 +167,29 @@ namespace EchoTspServer
             _timer = null;
         }
 
-        public void Dispose()
+        protected virtual void Dispose(bool disposing)
         {
-            StopSending();
-            _udpClient.Dispose();
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    StopSending();
+                    _udpClient.Dispose();
+                }
+
+                _disposed = true;
+            }
         }
 
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        ~UdpTimedSender()
+        {
+            Dispose(false);
+        }
     }
 }
