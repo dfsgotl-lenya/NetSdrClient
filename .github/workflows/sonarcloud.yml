@@ -1,4 +1,5 @@
-# This workflow uses actions that are not certified by GitHub.
+
+        # This workflow uses actions that are not certified by GitHub.
 # They are provided by a third-party and are governed by
 # separate terms of service, privacy policy, and support
 # documentation.
@@ -59,7 +60,7 @@ jobs:
           /k:"dfsgotl-lenya_NetSdrClient" `
           /o:"dfsgotl" `
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
-          /d:sonar.cs.opencover.reportsPaths="**/coverage.xml" `
+          /d:sonar.cs.opencover.reportsPaths="**/coverage.xml,**/coverage_EchoServer.xml" `
           /d:sonar.cpd.cs.minimumTokens=40 `
           /d:sonar.cpd.cs.minimumLines=5 `
           /d:sonar.exclusions=**/bin/**,**/obj/**,**/sonarcloud.yml `
@@ -71,10 +72,14 @@ jobs:
         run: dotnet build NetSdrClient.sln -c Release --no-restore
       - name: Tests with coverage (OpenCover)
         run: |
-          dotnet test NetSdrClientAppTests/NetSdrClientAppTests.csproj -c Release --no-build `
-            /p:CollectCoverage=true `
-            /p:CoverletOutput=TestResults/coverage.xml `
-            /p:CoverletOutputFormat=opencover
+           dotnet test NetSdrClientAppTests/NetSdrClientAppTests.csproj -c Release --no-build `
+             /p:CollectCoverage=true `
+             /p:CoverletOutput=TestResults/coverage.xml `
+             /p:CoverletOutputFormat=opencover
+           dotnet test EchoServer.Tests/EchoServer.Tests.csproj -c Release --no-build `
+             /p:CollectCoverage=true `
+             /p:CoverletOutput=TestResults/coverage_EchoServer.xml `
+             /p:CoverletOutputFormat=opencover
         shell: pwsh
       # 3) END: SonarScanner
       - name: SonarScanner End
