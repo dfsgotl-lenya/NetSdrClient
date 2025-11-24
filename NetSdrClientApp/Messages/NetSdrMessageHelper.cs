@@ -27,7 +27,7 @@ namespace NetSdrClientApp.Messages
             DataItem2,
             DataItem3
         }
-
+ 
         public enum ControlItemCodes : ushort
         {
             None = 0,
