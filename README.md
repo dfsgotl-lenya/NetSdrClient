@@ -7,7 +7,7 @@
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=dfsgotl-lenya_NetSdrClient&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=dfsgotl-lenya_NetSdrClient)
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=dfsgotl-lenya_NetSdrClient&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=dfsgotl-lenya_NetSdrClient)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=dfsgotl-lenya_NetSdrClient&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=dfsgotl-lenya_NetSdrClient)
-
+[![Dependabot Updates](https://github.com/dfsgotl-lenya/NetSdrClient/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/dfsgotl-lenya/NetSdrClient/actions/workflows/dependabot/dependabot-updates)
 
 Цей репозиторій використовується для курсу **реінжиніринг ПЗ**. 
 Мета — провести комплексний реінжиніринг спадкового коду NetSdrClient, включаючи рефакторинг архітектури, покращення якості коду, впровадження сучасних практик розробки та автоматизацію процесів контролю якості через CI/CD пайплайни.
