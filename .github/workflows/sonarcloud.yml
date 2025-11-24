@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  pull-requests: read # allows SonarCloud to decorate PRs with analysis results
+  pull-requests: read
 
 jobs:
   sonar-check:
@@ -23,7 +23,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # 1) BEGIN: SonarScanner for .NET
       - name: SonarScanner Begin
         run: |
           dotnet tool install --global dotnet-sonarscanner
@@ -37,8 +36,7 @@ jobs:
             /d:sonar.cpd.cs.minimumLines=5 `
             /d:sonar.exclusions="**/bin/**,**/obj/**,**/sonarcloud.yml"
         shell: pwsh
-        
-      # 2) BUILD & TEST
+
       - name: Restore
         run: dotnet restore NetSdrClient.sln
 
@@ -54,7 +52,6 @@ jobs:
             /p:Include="[NetSdrClientApp]*"
         shell: pwsh
 
-      # 3) END: SonarScanner
       - name: SonarScanner End
         run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
         shell: pwsh
