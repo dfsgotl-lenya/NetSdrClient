@@ -1,10 +1,7 @@
-using System.Diagnostics.CodeAnalysis;
-
-namespace NetSdrClientApp.Networking
+﻿namespace NetSdrClientApp.Networking
 {
     public interface IUdpClient
     {
-        [ExcludeFromCodeCoverage]
         event EventHandler<byte[]>? MessageReceived;
 
         Task StartListeningAsync();
