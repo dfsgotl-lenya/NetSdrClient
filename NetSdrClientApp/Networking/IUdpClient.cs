@@ -1,33 +1,12 @@
-// 1. Создаем интерфейс
-public interface IDataReceiver
+﻿namespace NetSdrClientApp.Networking
 {
-    Task<byte[]> ReceiveAsync(CancellationToken token);
-}
-
-// 2. Реализация для реальной сети
-public class UdpDataReceiver : IDataReceiver
-{
-    private readonly UdpClient _client;
-
-    public UdpDataReceiver(int port)
+    public interface IUdpClient
     {
-        _client = new UdpClient(port);
-    }
+        event EventHandler<byte[]>? MessageReceived;
 
-    public async Task<byte[]> ReceiveAsync(CancellationToken token)
-    {
-        var result = await _client.ReceiveAsync(token); // Используем асинхронность
-        return result.Buffer;
-    }
-}
+        Task StartListeningAsync();
 
-// 3. Основной класс теперь принимает интерфейс
-public class SdrClient
-{
-    private readonly IDataReceiver _receiver;
-
-    public SdrClient(IDataReceiver receiver)
-    {
-        _receiver = receiver; // Инъекция зависимости
+        void StopListening();
+        void Exit();
     }
 }
