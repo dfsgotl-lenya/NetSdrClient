@@ -31,7 +31,7 @@ jobs:
             /k:"dfsgotl-lenya_NetSdrClient" `
             /o:"dfsgotl" `
             /d:sonar.token="${{ secrets.SONAR_TOKEN }}" `
-            /d:sonar.cs.opencover.reportsPaths="**/TestResults/**/coverage.xml" `
+            /d:sonar.cs.opencover.reportsPaths="**/TestResults/**/coverage.opencover.xml" `
             /d:sonar.cpd.cs.minimumTokens=40 `
             /d:sonar.cpd.cs.minimumLines=5 `
             /d:sonar.exclusions="**/bin/**,**/obj/**,**/sonarcloud.yml"
@@ -40,15 +40,13 @@ jobs:
       - name: Restore
         run: dotnet restore NetSdrClient.sln
 
-      # Прибрали окремий крок Build, бо Test зробить це сам разом з інструментами покриття
-      
+      # ЦЕЙ БЛОК ТЕПЕР ПРАЦЮЄ ЯК У РЕФЕРЕНСНОМУ РЕПОЗИТОРІЇ
       - name: Tests with coverage
         run: |
-          dotnet test NetSdrClientAppTests/NetSdrClientAppTests.csproj -c Release `
-            /p:CollectCoverage=true `
-            /p:CoverletOutput=TestResults/coverage.xml `
-            /p:CoverletOutputFormat=opencover `
-            /p:Include="[NetSdrClientApp]*"
+          dotnet test NetSdrClientAppTests/NetSdrClientAppTests.csproj `
+            -c Release `
+            --collect:"XPlat Code Coverage" `
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
         shell: pwsh
 
       - name: SonarScanner End
