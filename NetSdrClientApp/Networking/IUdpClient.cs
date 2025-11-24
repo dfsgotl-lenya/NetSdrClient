@@ -1,10 +1,15 @@
-﻿
-public interface IUdpClient
+using System.Diagnostics.CodeAnalysis;
+
+namespace NetSdrClientApp.Networking
 {
-    event EventHandler<byte[]>? MessageReceived;
+    public interface IUdpClient
+    {
+        [ExcludeFromCodeCoverage]
+        event EventHandler<byte[]>? MessageReceived;
 
-    Task StartListeningAsync();
+        Task StartListeningAsync();
 
-    void StopListening();
-    void Exit();
+        void StopListening();
+        void Exit();
+    }
 }
