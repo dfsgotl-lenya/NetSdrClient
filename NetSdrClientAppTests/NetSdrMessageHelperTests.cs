@@ -38,7 +38,26 @@ namespace NetSdrClientAppTests
 
             Assert.That(parametersBytes.Count(), Is.EqualTo(parametersLength));
         }
+        public class NetSdrMessageHelperTests
+{
+        [Test]
+        public void Parse_ValidSimpleMessage_ReturnsExpected()
+        {
+            // TODO: замініть байти на реальний приклад з вашого протоколу
+            var raw = new byte[] { 0x01, 0x02, 0x03, 0x04 };
+            var msg = NetSdrMessageHelper.Parse(raw);
+            Assert.IsNotNull(msg);
+            Assert.AreEqual(NetSdrMessageType.Basic, msg.Type);
+        }
 
+        [Test]
+        public void Parse_Invalid_ThrowsFormatException()
+        {
+            var raw = new byte[] { 0xFF };
+            Assert.Throws<System.FormatException>(() => NetSdrMessageHelper.Parse(raw));
+        }
+}
+        
         [Test]
         public void GetDataItemMessageTest()
         {
