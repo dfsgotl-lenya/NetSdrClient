@@ -1,22 +1,22 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace NetSdrClientApp.Messages
 {
-    //TODO: analyze possible use of [StructLayout] for better performance and readability
+    //TODO: analyze possible use of [StructLayout] for better performance and readability 
     public static class NetSdrMessageHelper
     {
-        // Константы
         private const short _maxMessageLength = 8191;
         private const short _maxDataItemMessageLength = 8194;
-        private const short _msgHeaderLength = 2; // 2 byte, 16 bit
-        private const short _msgControlItemLength = 2; // 2 byte, 16 bit
-        private const short _msgSequenceNumberLength = 2; // 2 byte, 16 bit
+        private const short _msgHeaderLength = 2; //2 byte, 16 bit
+        private const short _msgControlItemLength = 2; //2 byte, 16 bit
+        private const short _msgSequenceNumberLength = 2; //2 byte, 16 bit
 
-        public enum MsgTypes : ushort // Явно задаємо тип для безпеки
+        public enum MsgTypes
         {
             SetControlItem,
             CurrentControlItem,
@@ -40,19 +40,11 @@ namespace NetSdrClientApp.Messages
 
         public static byte[] GetControlItemMessage(MsgTypes type, ControlItemCodes itemCode, byte[] parameters)
         {
-            // Перевірка на null
-            if (parameters is null)
-                throw new ArgumentNullException(nameof(parameters));
-            
             return GetMessage(type, itemCode, parameters);
         }
 
         public static byte[] GetDataItemMessage(MsgTypes type, byte[] parameters)
         {
-            // Перевірка на null
-            if (parameters is null)
-                throw new ArgumentNullException(nameof(parameters));
-
             return GetMessage(type, ControlItemCodes.None, parameters);
         }
 
@@ -61,59 +53,35 @@ namespace NetSdrClientApp.Messages
             var itemCodeBytes = Array.Empty<byte>();
             if (itemCode != ControlItemCodes.None)
             {
-                // Конвертація itemCode у байти
                 itemCodeBytes = BitConverter.GetBytes((ushort)itemCode);
             }
 
-            // Довжина тіла повідомлення (itemCodeBytes + parameters)
-            var bodyLength = itemCodeBytes.Length + parameters.Length;
+            var headerBytes = GetHeader(type, itemCodeBytes.Length + parameters.Length);
 
-            // Отримання заголовка
-            var headerBytes = GetHeader(type, bodyLength);
+            List<byte> msg = new List<byte>();
+            msg.AddRange(headerBytes);
+            msg.AddRange(itemCodeBytes);
+            msg.AddRange(parameters);
 
-            // Оптимізована конкатенація
-            byte[] msg = new byte[headerBytes.Length + bodyLength];
-
-            Buffer.BlockCopy(headerBytes, 0, msg, 0, headerBytes.Length);
-            Buffer.BlockCopy(itemCodeBytes, 0, msg, headerBytes.Length, itemCodeBytes.Length);
-            Buffer.BlockCopy(parameters, 0, msg, headerBytes.Length + itemCodeBytes.Length, parameters.Length);
-
-            return msg;
+            return msg.ToArray();
         }
 
         public static bool TranslateMessage(byte[] msg, out MsgTypes type, out ControlItemCodes itemCode, out ushort sequenceNumber, out byte[] body)
         {
             itemCode = ControlItemCodes.None;
             sequenceNumber = 0;
-            type = 0;
-            body = Array.Empty<byte>();
+            bool success = true;
+            var msgEnumarable = msg as IEnumerable<byte>;
 
-            if (msg is null || msg.Length < _msgHeaderLength)
-                return false;
+            TranslateHeader(msgEnumarable.Take(_msgHeaderLength).ToArray(), out type, out int msgLength);
+            msgEnumarable = msgEnumarable.Skip(_msgHeaderLength);
+            msgLength -= _msgHeaderLength;
 
-            int offset = 0;
-
-            // 1. Отримання та переклад заголовка
-            TranslateHeader(msg.Take(_msgHeaderLength).ToArray(), out type, out int msgLength);
-            offset += _msgHeaderLength;
-            
-            // Якщо довжина повідомлення не відповідає фактичній, це помилка
-            if (msgLength != msg.Length)
-                return false;
-
-            // Довжина даних, що залишилися
-            int remainingLength = msgLength - _msgHeaderLength;
-
-            // 2. Отримання коду елемента управління або порядкового номера
-            if (type < MsgTypes.DataItem0) // get item code (Control messages)
+            if (type < MsgTypes.DataItem0) // get item code
             {
-                if (remainingLength < _msgControlItemLength) return false;
-
-                // Використовуємо Subarray для безпечного копіювання
-                var itemCodeBytes = msg.Skip(offset).Take(_msgControlItemLength).ToArray();
-                var value = BitConverter.ToUInt16(itemCodeBytes, 0);
-                offset += _msgControlItemLength;
-                remainingLength -= _msgControlItemLength;
+                var value = BitConverter.ToUInt16(msgEnumarable.Take(_msgControlItemLength).ToArray());
+                msgEnumarable = msgEnumarable.Skip(_msgControlItemLength);
+                msgLength -= _msgControlItemLength;
 
                 if (Enum.IsDefined(typeof(ControlItemCodes), value))
                 {
@@ -121,106 +89,69 @@ namespace NetSdrClientApp.Messages
                 }
                 else
                 {
-                    return false; // Невідомий код елемента
+                    success = false;
                 }
             }
-            else // get sequenceNumber (Data messages)
+            else // get sequenceNumber
             {
-                if (remainingLength < _msgSequenceNumberLength) return false;
-
-                // Використовуємо Subarray для безпечного копіювання
-                var sequenceBytes = msg.Skip(offset).Take(_msgSequenceNumberLength).ToArray();
-                sequenceNumber = BitConverter.ToUInt16(sequenceBytes, 0);
-                offset += _msgSequenceNumberLength;
-                remainingLength -= _msgSequenceNumberLength;
+                sequenceNumber = BitConverter.ToUInt16(msgEnumarable.Take(_msgSequenceNumberLength).ToArray());
+                msgEnumarable = msgEnumarable.Skip(_msgSequenceNumberLength);
+                msgLength -= _msgSequenceNumberLength;
             }
 
-            // 3. Отримання тіла
-            if (remainingLength > 0)
-            {
-                body = msg.Skip(offset).ToArray();
-            }
-            else
-            {
-                body = Array.Empty<byte>();
-            }
+            body = msgEnumarable.ToArray();
 
-            // Перевірка, чи збігається фактично прочитана довжина з очікуваною
-            return body.Length == remainingLength;
+            success &= body.Length == msgLength;
+
+            return success;
         }
 
         public static IEnumerable<int> GetSamples(ushort sampleSize, byte[] body)
         {
-            if (body is null) throw new ArgumentNullException(nameof(body));
-
-            sampleSize /= 8; // to bytes
-
-            // Sonar S4456: Краще розділити перевірку параметрів від ітератора (yield)
-            if (sampleSize == 0 || sampleSize > 4)
+            sampleSize /= 8; //to bytes
+            if (sampleSize  > 4)
             {
-                throw new ArgumentOutOfRangeException(
-                    nameof(sampleSize),
-                    $"Sample size in bytes ({sampleSize}) must be between 1 and 4."
-                );
+                throw new ArgumentOutOfRangeException();
             }
 
-            // Коректне визначення префіксних байтів (заповнення нулями)
-            var prefixBytes = Enumerable.Repeat((byte)0, 4 - sampleSize).ToArray();
+            var bodyEnumerable = body as IEnumerable<byte>;
+            var prefixBytes = Enumerable.Range(0, 4 - sampleSize)
+                                      .Select(b => (byte)0);
 
-            // Використання циклу for для ефективності
-            for (int i = 0; i <= body.Length - sampleSize; i += sampleSize)
+            while (bodyEnumerable.Count() >= sampleSize)
             {
-                // Виділяємо необхідну частину з body
-                var sampleBytes = body.Skip(i).Take(sampleSize);
-
-                // Конкатенація та перетворення
-                yield return BitConverter.ToInt32(
-                    sampleBytes.Concat(prefixBytes).ToArray(), 0
-                );
+                yield return BitConverter.ToInt32(bodyEnumerable
+                    .Take(sampleSize)
+                    .Concat(prefixBytes)
+                    .ToArray());
+                bodyEnumerable = bodyEnumerable.Skip(sampleSize);
             }
         }
 
         private static byte[] GetHeader(MsgTypes type, int msgLength)
         {
-            // Перевірка на від'ємну довжину
-            if (msgLength < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(msgLength), "Message body length cannot be negative.");
-            }
+            int lengthWithHeader = msgLength + 2;
 
-            int lengthWithHeader = msgLength + _msgHeaderLength;
-
-            // Data Items edge case: якщо довжина = _maxDataItemMessageLength, то у полі заголовка записується 0
+            //Data Items edge case
             if (type >= MsgTypes.DataItem0 && lengthWithHeader == _maxDataItemMessageLength)
             {
                 lengthWithHeader = 0;
             }
 
-            // Перевірка на перевищення максимальної довжини
-            if (lengthWithHeader > _maxMessageLength && lengthWithHeader != 0)
+            if (msgLength < 0 || lengthWithHeader > _maxMessageLength)
             {
-                throw new ArgumentException($"Message length ({lengthWithHeader}) exceeds allowed value ({_maxMessageLength})");
+                throw new ArgumentException("Message length exceeds allowed value");
             }
 
-            // Формування 16-бітного заголовка: Type (3 біти) + Length (13 бітів)
-            return BitConverter.GetBytes((ushort)(lengthWithHeader + ((ushort)type << 13)));
+            return BitConverter.GetBytes((ushort)(lengthWithHeader + ((int)type << 13)));
         }
 
         private static void TranslateHeader(byte[] header, out MsgTypes type, out int msgLength)
         {
-            if (header.Length < _msgHeaderLength)
-                throw new ArgumentException("Header byte array is too short.", nameof(header));
-
-            var num = BitConverter.ToUInt16(header, 0); // Використовуємо перевантаження з offset=0
-            
-            // Витягуємо тип (3 біти)
+            var num = BitConverter.ToUInt16(header.ToArray());
             type = (MsgTypes)(num >> 13);
-            
-            // Витягуємо довжину (13 бітів)
-            // Використовуємо бітову маску 0x1FFF (13 одиниць)
-            msgLength = num & 0x1FFF;
+            msgLength = num - ((int)type << 13);
 
-            // Data Items edge case: якщо Length = 0, то фактична довжина = _maxDataItemMessageLength
             if (type >= MsgTypes.DataItem0 && msgLength == 0)
             {
                 msgLength = _maxDataItemMessageLength;
