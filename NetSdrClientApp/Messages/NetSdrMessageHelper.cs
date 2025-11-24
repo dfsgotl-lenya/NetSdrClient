@@ -16,7 +16,7 @@ namespace NetSdrClientApp.Messages
         private const short _msgControlItemLength = 2; //2 byte, 16 bit
         private const short _msgSequenceNumberLength = 2; //2 byte, 16 bit
 
-        public enum MsgTypes
+        public enum MsgTypes 
         {
             SetControlItem,
             CurrentControlItem,
